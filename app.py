@@ -19,12 +19,14 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs('templates', exist_ok=True)
 os.makedirs('static', exist_ok=True)
 
-# Load Advanced YOLOv8x model for extreme maximum tracking
-print("Loading AI Models...")
-model = YOLO('yolov8x.pt')  # The largest and absolute most accurate YOLOv8 available
-print("Models loaded successfully.")
+# Dictionary to hold live processing stats for the dashboard
+processing_stats = {}
 
-video_stats = {}  # Global dictionary to track live stats for the dashboard
+# Load TWO separate YOLOv8 models to perfectly balance Speed vs Accuracy
+print("Loading AI Models...")
+model_image = YOLO('yolov8x.pt')  # Upgraded to Extra-Large model for maximum accuracy
+model_video = YOLO('yolov8x.pt')  # Upgraded to Extra-Large model for maximum accuracy
+print("Models loaded successfully.")
 
 def process_image(filename):
     """Reads a static image, runs YOLO inference to detect crowd, and saves it."""
@@ -37,8 +39,11 @@ def process_image(filename):
         print(f"Error reading image {input_path}")
         return output_filename
         
-    # Use ultra-high res img_sz=2560, max_det=3000, iou=0.6 and conf=0.05 to find tiny background people
-    results = model(frame, classes=[0], conf=0.05, imgsz=2560, iou=0.6, max_det=3000, verbose=False)
+    if filename not in processing_stats:
+        processing_stats[filename] = {"status": "Processing", "current_count": 0, "max_count": 0, "density": "Unknown"}
+
+    # Use ultra-res img_sz=1536, low confidence (0.05), and high IOU (0.65) to allow overlapping people
+    results = model_image(frame, classes=[0], conf=0.05, imgsz=1536, iou=0.65, verbose=False)
     
     person_count = 0
     if len(results) > 0:
@@ -66,14 +71,13 @@ def process_image(filename):
         cv2.putText(annotated_frame, overlay_text, (20, 45), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
         
-    video_stats[filename] = {
-        'status': 'Complete',
-        'current_count': person_count,
-        'max_count': person_count,
-        'density': density
-    }
-        
     cv2.imwrite(output_path, annotated_frame)
+    
+    processing_stats[filename]["current_count"] = person_count
+    processing_stats[filename]["max_count"] = max(processing_stats[filename].get("max_count", 0), person_count)
+    processing_stats[filename]["density"] = density
+    processing_stats[filename]["status"] = "Complete"
+    
     return output_filename
 
 def process_video(filename):
@@ -106,14 +110,10 @@ def process_video(filename):
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     
     prev_time = 0
-    max_count = 0
-    video_stats[filename] = {
-        'status': 'Processing',
-        'current_count': 0,
-        'max_count': 0,
-        'density': 'Low'
-    }
     
+    if filename not in processing_stats:
+        processing_stats[filename] = {"status": "Live Processing", "current_count": 0, "max_count": 0, "density": "Unknown"}
+        
     while cap.isOpened():
         success, frame = cap.read()
         if not success:
@@ -124,18 +124,15 @@ def process_video(filename):
         fps_val = 1 / (current_time - prev_time) if prev_time > 0 else 0
         prev_time = current_time
         
-        # 2. Run Advanced YOLO inference
-        # Use imgsz=1920 to scan native 1080p density.
-        # conf=0.05 trusts the AI to flag anything resembling a human
-        results = model(frame, classes=[0], conf=0.05, imgsz=1920, iou=0.6, max_det=3000, verbose=False)
+        # 2. Run YOLO inference
+        # classes=[0] ensures we ONLY detect 'person' class
+        # Increased imgsz to 1536, lowered conf to 0.05, and increased iou to 0.65 to allow heavily overlapping people
+        results = model_video(frame, classes=[0], conf=0.05, imgsz=1536, iou=0.65, verbose=False)
         
         # 3. Count number of people in the frame
         person_count = 0
         if len(results) > 0:
             person_count = len(results[0].boxes)
-            
-        if person_count > max_count:
-            max_count = person_count
             
         # 4. Classify Crowd Density
         if person_count <= 10:
@@ -148,9 +145,9 @@ def process_video(filename):
             density = "High"
             color = (0, 0, 255) # Red in BGR
 
-        video_stats[filename]['current_count'] = person_count
-        video_stats[filename]['max_count'] = max_count
-        video_stats[filename]['density'] = density
+        processing_stats[filename]["current_count"] = person_count
+        processing_stats[filename]["max_count"] = max(processing_stats[filename].get("max_count", 0), person_count)
+        processing_stats[filename]["density"] = density
 
         # 5. Draw bounding boxes around detected people
         annotated_frame = results[0].plot()
@@ -184,15 +181,11 @@ def process_video(filename):
     # Cleanup resources perfectly
     cap.release()
     out.release()
-    video_stats[filename]['status'] = 'Complete'
+    if filename in processing_stats:
+        processing_stats[filename]["status"] = "Complete"
     print(f"Finished processing. Saved locally to {output_path}")
 
 # ROUTES
-
-@app.route('/api/stats/<filename>')
-def get_stats(filename):
-    """Returns the live counting stats of a processing video"""
-    return jsonify(video_stats.get(filename, {'status': 'Unknown'}))
 
 @app.route('/')
 def index():
@@ -247,6 +240,13 @@ def video_feed(filename):
     """Endpoint providing the multipart stream for live playback"""
     return Response(process_video(filename),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/api/stats/<filename>')
+def api_stats(filename):
+    """API endpoint to provide live processing stats to the dashboard"""
+    if filename in processing_stats:
+        return jsonify(processing_stats[filename])
+    return jsonify({"status": "Unknown", "current_count": 0, "max_count": 0, "density": "--"})
 
 if __name__ == '__main__':
     # Running application in debug mode for development flexibility
