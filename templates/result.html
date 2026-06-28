@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Result - Crowd Density</title>
+    <!-- Link to our Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container result-container">
+        <header>
+            <h1>Live Analysis Dashboard</h1>
+            <p class="subtitle">Processing file: {{ filename }}</p>
+        </header>
+
+        <!-- Information Cards (Will Update dynamically) -->
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <div class="stat-title">Status</div>
+                <div class="stat-value" id="status-card" style="color: var(--accent); font-size: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; height: 100%;">
+                    <i class="fa-solid fa-circle-dot fa-fade" style="color: #ef4444; font-size: 1rem;"></i> Live Processing
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Crowd Count Analysis</div>
+                <div class="stat-value" id="count-card" style="font-size: 1.8rem; margin-top: 0.5rem; color: var(--text-main);">
+                    --
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Crowd Density State</div>
+                <div class="stat-value" id="density-card" style="font-size: 1.8rem; margin-top: 0.5rem; color: var(--text-main);">
+                    --
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Player / Image Viewer Stream -->
+        <div class="glass-panel" style="max-width: 100%; padding: 1.5rem;">
+            <div class="video-wrapper">
+                {% if file_type == 'image' %}
+                    <img src="{{ url_for('output_file', filename=processed_filename) }}" alt="Processed Image" id="image-stream">
+                {% else %}
+                    <!-- Fetch the MJPEG feed output from Flask generator route -->
+                    <img src="{{ url_for('video_feed', filename=filename) }}" alt="System Processing Stream..." id="video-stream">
+                {% endif %}
+            </div>
+            
+            <div class="nav-actions">
+                <a href="{{ url_for('index') }}" class="btn" style="text-decoration: none; display: inline-block;">
+                    <i class="fa-solid fa-arrow-left"></i> Analyze Another File
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Status Polling Hook -->
+    <script>
+        const filename = "{{ processed_filename }}".replace("processed_", "");
+        const statusCard = document.getElementById('status-card');
+        const countCard = document.getElementById('count-card');
+        const densityCard = document.getElementById('density-card');
+        
+        const fetchStats = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/stats/${filename}`);
+                const data = await response.json();
+                
+                if (data.status === 'Unknown') return;
+                
+                // Track Count Stats
+                const maxCount = data.max_count !== undefined ? data.max_count : data.current_count;
+                countCard.innerHTML = `Max: <span style="color: var(--accent);">${maxCount}</span> <div style="font-size:1rem; color: var(--text-muted); margin-top:5px;">Live: ${data.current_count || 0}</div>`;
+                
+                // Track Density Strings
+                let densityColor = 'var(--text-main)';
+                if (data.density === 'Low') densityColor = 'var(--success)';
+                if (data.density === 'Medium') densityColor = '#eab308';
+                if (data.density === 'High') densityColor = '#ef4444';
+                
+                densityCard.innerHTML = `<span style="color: ${densityColor}; font-weight: bold;">${data.density || '--'}</span>`;
+
+                // Handle Sequence finished
+                if (data.status === 'Complete') {
+                    statusCard.innerHTML = `<i class="fa-solid fa-check-circle" style="color: var(--success); font-size: 1.5rem;"></i> <span style="color: var(--success)">Analysis Complete</span>`;
+                    clearInterval(fetchStats);
+                }
+            } catch (err) {
+                console.error("Dashboard Sync Error:", err);
+            }
+        }, 1200); // Check every 1.2s smoothly
+    </script>
+</body>
+</html>
