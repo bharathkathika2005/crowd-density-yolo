@@ -9,10 +9,27 @@ from ultralytics import YOLO
 BASE_DIR = Path(__file__).resolve().parent
 PARENT_DIR = BASE_DIR.parent
 MODEL_NAME = os.environ.get('YOLO_MODEL', 'yolov8n.pt')
-MODEL_PATH = BASE_DIR / MODEL_NAME
-if not MODEL_PATH.exists():
-    MODEL_PATH = PARENT_DIR / MODEL_NAME
-model_source = str(MODEL_PATH) if MODEL_PATH.exists() else MODEL_NAME
+
+
+def resolve_model_path():
+    """Return the first available local YOLO weights file, falling back to the configured model name."""
+    candidates = [
+        BASE_DIR / MODEL_NAME,
+        PARENT_DIR / MODEL_NAME,
+        BASE_DIR / 'yolov8x.pt',
+        PARENT_DIR / 'yolov8x.pt',
+        BASE_DIR / 'yolov8n.pt',
+        PARENT_DIR / 'yolov8n.pt',
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    return MODEL_NAME
+
+
+model_source = resolve_model_path()
 
 app = Flask(__name__, template_folder=str(BASE_DIR / 'templates'), static_folder=str(BASE_DIR / 'static'))
 
