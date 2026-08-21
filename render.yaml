@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: crowd-density-yolo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /
+    envVars:
+      - key: YOLO_CONFIG_DIR
+        value: /tmp/Ultralytics
