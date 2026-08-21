@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crowd Density Estimation</title>
+    <!-- Link to our Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Load FontAwesome for beautiful icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Crowd Observer</h1>
+            <p class="subtitle">Video & Image Crowd Density Estimation System using YOLOv8</p>
+        </header>
+
+        <main class="glass-panel">
+            <form id="upload-form">
+                <!-- Interactive Drag and Drop area -->
+                <div class="upload-area" id="drop-area">
+                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                    <div class="upload-text">Drag & Drop Video or Image Here</div>
+                    <div class="upload-subtext">or click to browse from your computer</div>
+                    <input type="file" id="file-input" name="video" accept="video/mp4,video/avi,video/mkv,video/quicktime,image/jpeg,image/png,image/jpg" required>
+                </div>
+
+                <!-- Display selected filename -->
+                <div id="file-info" style="display: none; text-align: center; margin-bottom: 1rem; color: var(--accent);">
+                    <i class="fa-solid fa-file-video"></i> <span id="file-name"></span>
+                </div>
+
+                <button type="submit" class="btn" id="upload-btn" disabled>Analyze Media</button>
+
+                <!-- Modern Progress Indicator -->
+                <div class="progress-container" id="progress-container">
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="progress-bar"></div>
+                    </div>
+                    <div class="progress-text" id="progress-text">0%</div>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <!-- Frontend logic for UX (Drag&Drop, XHR Upload) -->
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const fileInfo = document.getElementById('file-info');
+        const uploadBtn = document.getElementById('upload-btn');
+        const form = document.getElementById('upload-form');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+
+        // Handle Browse Click
+        dropArea.addEventListener('click', () => fileInput.click());
+
+        // Handle Drag & Drop behavior cleanly
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect();
+            }
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = fileInput.files[0].name;
+                fileInfo.style.display = 'block';
+                uploadBtn.disabled = false;
+            } else {
+                fileInfo.style.display = 'none';
+                uploadBtn.disabled = true;
+            }
+        }
+
+        // Handle Form Submission with AJAX exactly to track Upload Progress
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            if (fileInput.files.length === 0) return;
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('video', file);
+
+            // UI feedback
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+            progressContainer.style.display = 'block';
+
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = percentComplete + '%';
+                    progressText.textContent = percentComplete + '%';
+                    
+                    if (percentComplete === 100) {
+                        uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Initializing AI Engine...';
+                        progressText.textContent = 'Upload complete! Getting AI ready...';
+                    }
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        // Redirect to the result page provided by Flask
+                        window.location.href = response.redirect_url;
+                    } catch (e) {
+                        alert('Server successfully responded but with unknown format.');
+                    }
+                } else {
+                    alert('An error occurred during backend connection. Make sure Flask is running.');
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Analyze Media';
+                    progressContainer.style.display = 'none';
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                alert('Upload failed. Check your network or make sure the server is healthy.');
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Analyze Video';
+                progressContainer.style.display = 'none';
+            });
+
+            xhr.open('POST', '/upload', true);
+            xhr.send(formData);
+        });
+    </script>
+</body>
+</html>
