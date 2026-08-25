@@ -17,13 +17,24 @@ This is a complete web-based system that detects people in a video, counts them 
    ```bash
    pip install -r requirements.txt
    ```
-   > Note: `ultralytics` library will automatically download the `yolov8n.pt` weights file the first time you run the application.
+   > Note: The application uses `yolov8x.pt` by default. The weights file is intentionally not committed to Git. Add it to the deployment as an artifact, or set `YOLO_MODEL` to a path available on the server. Ultralytics can also download the file when the app starts, but this requires outbound network access and enough disk space.
 
 3. **Run the Application:**
-   Execute the `app.py` script to start the Flask development server:
+   Execute the `app.py` script to start the local server:
    ```bash
    python app.py
    ```
+
+## Deploying
+
+The included `Procfile` is ready for platforms such as Render, Railway, and Heroku. Use the following build and start commands when the platform asks for them:
+
+```bash
+pip install -r requirements.txt
+gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 600 app:app
+```
+
+The server listens on the platform-provided `PORT` and binds to all interfaces. Keep workers at `1` because each worker loads the YOLO model into memory. The `uploads/` and `outputs/` folders are temporary on most hosting platforms, so use persistent storage or object storage if processed files must survive a restart.
 
 4. **Access the Web App:**
    Open your web browser and go to: `http://127.0.0.1:5000`

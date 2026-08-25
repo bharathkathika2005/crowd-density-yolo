@@ -8,24 +8,28 @@ from ultralytics import YOLO
 app = Flask(__name__)
 
 # Core Configurations
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'outputs'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
+MODEL_PATH = os.getenv('YOLO_MODEL', os.path.join(BASE_DIR, 'yolov8x.pt'))
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_UPLOAD_MB', '200')) * 1024 * 1024
 
 # Ensure necessary directories exist based on Project Structure
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs('templates', exist_ok=True)
-os.makedirs('static', exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, 'templates'), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 
 # Dictionary to hold live processing stats for the dashboard
 processing_stats = {}
 
 # Load TWO separate YOLOv8 models to perfectly balance Speed vs Accuracy
 print("Loading AI Models...")
-model_image = YOLO('yolov8x.pt')  # Upgraded to Extra-Large model for maximum accuracy
-model_video = YOLO('yolov8x.pt')  # Upgraded to Extra-Large model for maximum accuracy
+model = YOLO(MODEL_PATH)
+model_image = model
+model_video = model
 print("Models loaded successfully.")
 
 def process_image(filename):
@@ -249,5 +253,5 @@ def api_stats(filename):
     return jsonify({"status": "Unknown", "current_count": 0, "max_count": 0, "density": "--"})
 
 if __name__ == '__main__':
-    # Running application in debug mode for development flexibility
-    app.run(debug=True, port=5000)
+    port = int(os.getenv('PORT', '5000'))
+    app.run(host='0.0.0.0', port=port, debug=os.getenv('FLASK_DEBUG') == '1')
