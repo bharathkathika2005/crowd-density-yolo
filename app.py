@@ -1,17 +1,41 @@
 import os
+from pathlib import Path
 import cv2
 import time
 from flask import Flask, render_template, request, redirect, url_for, Response, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from ultralytics import YOLO
 
-app = Flask(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+PARENT_DIR = BASE_DIR.parent
+MODEL_NAME = os.environ.get('YOLO_MODEL', 'yolov8n.pt')
+
+
+def resolve_model_path():
+    """Return the first available local YOLO weights file, falling back to the configured model name."""
+    candidates = [
+        BASE_DIR / MODEL_NAME,
+        PARENT_DIR / MODEL_NAME,
+        BASE_DIR / 'yolov8x.pt',
+        PARENT_DIR / 'yolov8x.pt',
+        BASE_DIR / 'yolov8n.pt',
+        PARENT_DIR / 'yolov8n.pt',
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    return MODEL_NAME
+
+
+model_source = resolve_model_path()
+
+app = Flask(__name__, template_folder=str(BASE_DIR / 'templates'), static_folder=str(BASE_DIR / 'static'))
 
 # Core Configurations
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
-MODEL_PATH = os.getenv('YOLO_MODEL', os.path.join(BASE_DIR, 'yolov8x.pt'))
+UPLOAD_FOLDER = str(BASE_DIR / 'uploads')
+OUTPUT_FOLDER = str(BASE_DIR / 'outputs')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_UPLOAD_MB', '200')) * 1024 * 1024
@@ -19,15 +43,13 @@ app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_UPLOAD_MB', '200')) * 1024
 # Ensure necessary directories exist based on Project Structure
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, 'templates'), exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 
 # Dictionary to hold live processing stats for the dashboard
 processing_stats = {}
 
-# Load TWO separate YOLOv8 models to perfectly balance Speed vs Accuracy
+# Load the model once so each worker uses only one copy in memory.
 print("Loading AI Models...")
-model = YOLO(MODEL_PATH)
+model = YOLO(model_source)
 model_image = model
 model_video = model
 print("Models loaded successfully.")

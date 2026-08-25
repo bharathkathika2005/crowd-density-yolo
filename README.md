@@ -17,7 +17,7 @@ This is a complete web-based system that detects people in a video, counts them 
    ```bash
    pip install -r requirements.txt
    ```
-   > Note: The application uses `yolov8x.pt` by default. The weights file is intentionally not committed to Git. Add it to the deployment as an artifact, or set `YOLO_MODEL` to a path available on the server. Ultralytics can also download the file when the app starts, but this requires outbound network access and enough disk space.
+   > Note: `ultralytics` will automatically download the default `yolov8n.pt` weights file the first time you run the application. To use another YOLO model, set the `YOLO_MODEL` environment variable, for example `YOLO_MODEL=yolov8x.pt`.
 
 3. **Run the Application:**
    Execute the `app.py` script to start the local server:

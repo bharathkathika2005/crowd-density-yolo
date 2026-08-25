@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: crowd-density-yolo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 600 app:app
+    healthCheckPath: /
+    envVars:
+      - key: YOLO_CONFIG_DIR
+        value: /tmp/Ultralytics
