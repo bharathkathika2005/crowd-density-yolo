@@ -36,6 +36,8 @@ gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 600 app:app
 
 The server listens on the platform-provided `PORT` and binds to all interfaces. Keep workers at `1` because each worker loads the YOLO model into memory. The `uploads/` and `outputs/` folders are temporary on most hosting platforms, so use persistent storage or object storage if processed files must survive a restart.
 
+For CPU-only hosting, the Render configuration uses `YOLO_IMAGE_SIZE=640`. Increase this value only on a stronger machine; larger values improve detail but make image and video processing much slower.
+
 4. **Access the Web App:**
    Open your web browser and go to: `http://127.0.0.1:5000`
 

@@ -9,3 +9,5 @@ services:
     envVars:
       - key: YOLO_CONFIG_DIR
         value: /tmp/Ultralytics
+      - key: YOLO_IMAGE_SIZE
+        value: "640"

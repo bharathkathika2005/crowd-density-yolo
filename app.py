@@ -9,6 +9,7 @@ from ultralytics import YOLO
 BASE_DIR = Path(__file__).resolve().parent
 PARENT_DIR = BASE_DIR.parent
 MODEL_NAME = os.environ.get('YOLO_MODEL', 'yolov8n.pt')
+INFERENCE_SIZE = int(os.environ.get('YOLO_IMAGE_SIZE', '640'))
 
 
 def resolve_model_path():
@@ -68,8 +69,7 @@ def process_image(filename):
     if filename not in processing_stats:
         processing_stats[filename] = {"status": "Processing", "current_count": 0, "max_count": 0, "density": "Unknown"}
 
-    # Use ultra-res img_sz=1536, low confidence (0.05), and high IOU (0.65) to allow overlapping people
-    results = model_image(frame, classes=[0], conf=0.05, imgsz=1536, iou=0.65, verbose=False)
+    results = model_image(frame, classes=[0], conf=0.05, imgsz=INFERENCE_SIZE, iou=0.65, verbose=False)
     
     person_count = 0
     if len(results) > 0:
@@ -152,8 +152,7 @@ def process_video(filename):
         
         # 2. Run YOLO inference
         # classes=[0] ensures we ONLY detect 'person' class
-        # Increased imgsz to 1536, lowered conf to 0.05, and increased iou to 0.65 to allow heavily overlapping people
-        results = model_video(frame, classes=[0], conf=0.05, imgsz=1536, iou=0.65, verbose=False)
+        results = model_video(frame, classes=[0], conf=0.05, imgsz=INFERENCE_SIZE, iou=0.65, verbose=False)
         
         # 3. Count number of people in the frame
         person_count = 0
@@ -239,13 +238,15 @@ def upload_file():
         
         # Branch logic depending on file extension
         ext_lower = ext.lower()
-        if ext_lower in ['.jpg', '.jpeg', '.png']:
-            # For static images, process straight away
-            process_image(unique_filename)
-            redirect_url = url_for('result', filename=unique_filename, type='image')
-        else:
-            # For videos, redirect and load stream viewer
-            redirect_url = url_for('result', filename=unique_filename, type='video')
+        try:
+            if ext_lower in ['.jpg', '.jpeg', '.png']:
+                process_image(unique_filename)
+                redirect_url = url_for('result', filename=unique_filename, type='image')
+            else:
+                redirect_url = url_for('result', filename=unique_filename, type='video')
+        except Exception as error:
+            app.logger.exception("Media processing failed")
+            return jsonify({'error': f'Media processing failed: {error}'}), 500
             
         return jsonify({'redirect_url': redirect_url})
 
