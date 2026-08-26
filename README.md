@@ -1,3 +1,13 @@
+---
+title: Crowd Density Estimation
+emoji: 👥
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Crowd Density Estimation using YOLO and OpenCV
 
 This is a complete web-based system that detects people in a video, counts them in real-time, and classifies the crowd density.
