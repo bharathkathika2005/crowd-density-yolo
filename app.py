@@ -31,6 +31,7 @@ def resolve_model_path():
 
 
 model_source = resolve_model_path()
+model = None
 
 app = Flask(__name__, template_folder=str(BASE_DIR / 'templates'), static_folder=str(BASE_DIR / 'static'))
 
@@ -48,12 +49,13 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 # Dictionary to hold live processing stats for the dashboard
 processing_stats = {}
 
-# Load the model once so each worker uses only one copy in memory.
-print("Loading AI Models...")
-model = YOLO(model_source)
-model_image = model
-model_video = model
-print("Models loaded successfully.")
+def get_model():
+    global model
+    if model is None:
+        print(f"Loading AI model: {model_source}")
+        model = YOLO(model_source)
+        print("Model loaded successfully.")
+    return model
 
 def process_image(filename):
     """Reads a static image, runs YOLO inference to detect crowd, and saves it."""
@@ -69,7 +71,7 @@ def process_image(filename):
     if filename not in processing_stats:
         processing_stats[filename] = {"status": "Processing", "current_count": 0, "max_count": 0, "density": "Unknown"}
 
-    results = model_image(frame, classes=[0], conf=0.05, imgsz=INFERENCE_SIZE, iou=0.65, verbose=False)
+    results = get_model()(frame, classes=[0], conf=0.05, imgsz=INFERENCE_SIZE, iou=0.65, verbose=False)
     
     person_count = 0
     if len(results) > 0:
@@ -152,7 +154,7 @@ def process_video(filename):
         
         # 2. Run YOLO inference
         # classes=[0] ensures we ONLY detect 'person' class
-        results = model_video(frame, classes=[0], conf=0.05, imgsz=INFERENCE_SIZE, iou=0.65, verbose=False)
+        results = get_model()(frame, classes=[0], conf=0.05, imgsz=INFERENCE_SIZE, iou=0.65, verbose=False)
         
         # 3. Count number of people in the frame
         person_count = 0
@@ -216,6 +218,10 @@ def process_video(filename):
 def index():
     """Renders the Home Page (Video Upload)"""
     return render_template('index.html')
+
+@app.route('/healthz')
+def healthz():
+    return jsonify({'status': 'ok'})
 
 @app.route('/upload', methods=['POST'])
 def upload_file():

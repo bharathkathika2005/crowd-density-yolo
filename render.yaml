@@ -5,9 +5,9 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 600 app:app
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: YOLO_CONFIG_DIR
         value: /tmp/Ultralytics
       - key: YOLO_IMAGE_SIZE
-        value: "640"
+        value: "320"
